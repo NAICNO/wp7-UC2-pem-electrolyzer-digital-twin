@@ -1,0 +1,39 @@
+# Build artifacts
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+*.swp
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Environment files with secrets
+.env
+
+# PyTorch checkpoints (large) - except deployed models
+*.pt
+*.pth
+!results/best_12param.pt
+
+# Added for GitHub migration
+.coverage
+.pytest_cache/

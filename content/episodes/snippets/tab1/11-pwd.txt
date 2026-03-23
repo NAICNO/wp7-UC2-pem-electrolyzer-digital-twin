@@ -1,0 +1,4 @@
+[MY_USER_NAME@TAB_1 ~]$ pwd
+
+/cluster/home/MY_USER_NAME
+

@@ -1,0 +1,4 @@
+[MY_USER_NAME@GENERIC ~]$ pwd
+
+/cluster/home/MY_USER_NAME
+

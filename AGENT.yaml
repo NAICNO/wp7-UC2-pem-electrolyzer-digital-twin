@@ -1,0 +1,222 @@
+# PEM Electrolyzer PINN - AI Agent Configuration
+metadata:
+  name: "PEM Electrolyzer PINN Demonstrator"
+  version: "1.0"
+  repository: "https://github.com/NAICNO/wp7-UC2-pem-electrolyzer-digital-twin"
+  documentation: "https://naicno.github.io/wp7-UC2-pem-electrolyzer-digital-twin/"
+  description: "Physics-informed neural networks for PEM electrolyzer voltage prediction"
+
+prerequisites:
+  - "SSH access to NAIC VM (via orchestrator.naic.no)"
+  - "Python 3.8+"
+  - "GPU recommended (NVIDIA)"
+
+environment_check:
+  - command: "python3 --version"
+    expected: "Python 3.8+"
+  - command: "python -c 'import torch; print(torch.cuda.is_available())'"
+    expected: "True (for GPU) or False (CPU-only)"
+  - command: "ls dataset/*.csv"
+    expected: "test2_subset.csv, test3_subset.csv, test4_subset.csv"
+
+vm_init:
+  script: "vm-init.sh"
+  description: "One-time VM initialization (installs system packages, CUDA setup)"
+  commands:
+    - "curl -O https://raw.githubusercontent.com/NAICNO/wp7-UC2-pem-electrolyzer-digital-twin/main/vm-init.sh"
+    - "chmod +x vm-init.sh"
+    - "./vm-init.sh"
+
+setup:
+  script: "setup.sh"
+  commands:
+    - "git clone https://github.com/NAICNO/wp7-UC2-pem-electrolyzer-digital-twin.git"
+    - "cd uc2-pem-electrolyzer-pinn-optimizer"
+    - "chmod +x setup.sh"
+    - "./setup.sh"
+    - "source venv/bin/activate"
+
+jupyter:
+  start: "jupyter lab --no-browser --ip=0.0.0.0 --port=8888"
+  tunnel_template: "ssh -v -N -L 8888:localhost:8888 -i YOUR_KEY_PATH ubuntu@YOUR_VM_IP"
+  tunnel_example: "ssh -v -N -L 8888:localhost:8888 -i ~/.ssh/naic-vm.pem ubuntu@10.212.136.52"
+  tunnel_note: "Replace YOUR_KEY_PATH and YOUR_VM_IP with actual values. Do NOT include angle brackets."
+  notebook: "demonstrator-v1.orchestrator.ipynb"
+
+cli:
+  entry_point: "scripts/pem_electrolyzer/main.py"
+  quick_test: "python scripts/pem_electrolyzer/main.py --mode quick-test"
+  full_training: "python scripts/pem_electrolyzer/main.py --mode full --device cuda --epochs 100"
+  inverse_solver: "python scripts/pem_electrolyzer/main.py --mode inverse --voltage 1.85 --current 10 --temperature 75"
+  voltage_predict: "python scripts/pem_electrolyzer/main.py --mode inverse --current 10 --temperature 75 --pressure 20"
+
+parameters:
+  required: []
+  optional:
+    - name: "mode"
+      type: "string"
+      default: "full"
+      choices: ["full", "quick-test", "teacher-only", "ablation", "inverse"]
+      description: "Execution mode"
+    - name: "data-dir"
+      type: "string"
+      default: "dataset/"
+      description: "Path to dataset directory"
+    - name: "output-dir"
+      type: "string"
+      default: "results/"
+      description: "Path to output directory"
+    - name: "epochs"
+      type: "integer"
+      default: 100
+      range: [5, 500]
+      description: "Training epochs"
+    - name: "seed"
+      type: "integer"
+      default: 42
+      description: "Random seed for reproducibility"
+    - name: "alpha"
+      type: "float"
+      default: 0.1
+      range: [0.0, 1.0]
+      description: "Distillation weight (0.1 = 90% teacher)"
+    - name: "batch-size"
+      type: "integer"
+      default: 4096
+      choices: [512, 1024, 2048, 4096, 8192]
+      description: "Training batch size"
+    - name: "lr"
+      type: "float"
+      default: 0.01
+      description: "Learning rate"
+    - name: "device"
+      type: "string"
+      default: "auto"
+      choices: ["auto", "cuda", "cpu"]
+      description: "Compute device"
+    # Inverse solver parameters
+    - name: "voltage"
+      type: "float"
+      description: "Target voltage [V] (for inverse mode P_max search)"
+    - name: "current"
+      type: "float"
+      description: "Current [A] (for inverse mode)"
+    - name: "temperature"
+      type: "float"
+      description: "Temperature [°C] (for inverse mode)"
+    - name: "pressure"
+      type: "float"
+      description: "Pressure [bar] (for inverse voltage prediction)"
+    - name: "checkpoint"
+      type: "string"
+      default: "results/best_12param.pt"
+      description: "Model checkpoint path (for inverse mode)"
+    - name: "safety-margin"
+      type: "float"
+      default: 40.0
+      description: "Safety margin [mV] (for inverse mode)"
+    - name: "json"
+      type: "boolean"
+      default: false
+      description: "Output as JSON (for inverse mode)"
+
+models:
+  - name: "teacher"
+    class: "HybridPhysicsMLP"
+    type: "Physics + MLP"
+    parameters: 9354
+    description: "8 physics params + MLP residual correction"
+  - name: "student"
+    class: "PhysicsHybrid12Param"
+    type: "Pure Physics"
+    parameters: 12
+    description: "6 physics + 6 hybrid correction parameters"
+  - name: "pure_mlp"
+    class: "PureMLP"
+    type: "Pure ML"
+    parameters: 9300
+    description: "No-physics baseline [128, 64] MLP"
+  - name: "big_mlp"
+    class: "BigMLP"
+    type: "Pure ML"
+    parameters: 50000
+    description: "Large no-physics baseline [256, 128, 64] MLP"
+  - name: "transformer"
+    class: "SteadyStateTransformer"
+    type: "Pure ML"
+    parameters: 50000
+    description: "Self-attention baseline"
+
+datasets:
+  - name: "test4_subset.csv"
+    purpose: "Training"
+    description: "Long-term stability test (2024-10-16)"
+    samples: "~193K"
+  - name: "test2_subset.csv"
+    purpose: "OOD Evaluation"
+    description: "Current sweep experiment (2024-09-27)"
+    samples: "~32K"
+  - name: "test3_subset.csv"
+    purpose: "OOD Evaluation"
+    description: "Pressure swap experiment (2024-09-30)"
+    samples: "~37K"
+
+directory_structure:
+  entry_point: "scripts/pem_electrolyzer/main.py"
+  models: "scripts/pem_electrolyzer/models.py"
+  inverse: "scripts/pem_electrolyzer/inverse.py"
+  data: "scripts/pem_electrolyzer/dataloader.py"
+  training: "scripts/pem_electrolyzer/trainer.py"
+  distillation: "scripts/pem_electrolyzer/distillation.py"
+  evaluation: "scripts/pem_electrolyzer/evaluation.py"
+  notebook: "demonstrator-v1.orchestrator.ipynb"
+  dataset: "dataset/"
+  results: "results/"
+
+ssh_examples:
+  login: "ssh -i ~/.ssh/naic-vm.pem ubuntu@10.212.136.52"
+  jupyter_tunnel: "ssh -v -N -L 8888:localhost:8888 -i ~/.ssh/naic-vm.pem ubuntu@10.212.136.52"
+  common_mistakes:
+    - mistake: "Typing angle brackets literally: ubuntu@<VM_IP>"
+      fix: "Replace with actual IP: ubuntu@10.212.136.52"
+    - mistake: "Wrong key permissions"
+      fix: "chmod 600 ~/.ssh/naic-vm.pem"
+    - mistake: "SSH tunnel appears stuck"
+      fix: "Normal behavior with -N flag. Open http://localhost:8888 in browser."
+
+sweep_examples:
+  current_sweep: "for I in 5 8 10 12 15; do python scripts/pem_electrolyzer/main.py --mode inverse --voltage 1.85 --current $I --temperature 75 --json; done"
+  temperature_sweep: "for T in 60 65 70 75 80; do python scripts/pem_electrolyzer/main.py --mode inverse --voltage 1.85 --current 10 --temperature $T --json; done"
+  voltage_map: "for I in 5 10 15; do for P in 5 10 20 30; do python scripts/pem_electrolyzer/main.py --mode inverse --current $I --temperature 75 --pressure $P --json; done; done"
+  multi_seed: "for SEED in 42 123 456; do python scripts/pem_electrolyzer/main.py --mode full --seed $SEED --epochs 100 --device cuda; done"
+
+troubleshooting:
+  - issue: "SSH Permission denied (publickey)"
+    solution: "Check key permissions: chmod 600 ~/.ssh/your-key.pem"
+  - issue: "Typed <VM_IP> literally in SSH command"
+    solution: "Replace with actual IP from orchestrator.naic.no, e.g. ubuntu@10.212.136.52"
+  - issue: "SSH tunnel hangs"
+    solution: "This is normal with -N flag. Open http://localhost:8888 in your browser."
+  - issue: "CUDA out of memory"
+    solution: "Reduce batch size: --batch-size 1024"
+  - issue: "ModuleNotFoundError"
+    solution: "Activate venv: source venv/bin/activate"
+  - issue: "Permission denied (scripts)"
+    solution: "chmod +x setup.sh vm-init.sh"
+  - issue: "No GPU detected"
+    solution: "Check nvidia-smi; run vm-init.sh for CUDA setup"
+  - issue: "Data files not found"
+    solution: "Check ls dataset/*.csv; run python dataset/extract_data.py if needed"
+  - issue: "Checkpoint not found (inverse mode)"
+    solution: "Train first with --mode full, or provide --checkpoint path"
+
+verification:
+  - step: "Quick test passes"
+    command: "python scripts/pem_electrolyzer/main.py --mode quick-test"
+    expected: "QUICK TEST PASSED message"
+  - step: "Results generated"
+    command: "ls results/results.json"
+    expected: "File exists after full training"
+  - step: "GPU is used"
+    command: "python -c 'import torch; print(torch.cuda.is_available())'"
+    expected: "True"
