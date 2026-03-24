@@ -1,0 +1,8 @@
+# Test dependencies (CI-friendly, CPU-only, no notebook packages)
+numpy
+pandas
+matplotlib
+seaborn
+tqdm
+pytest
+pytest-cov

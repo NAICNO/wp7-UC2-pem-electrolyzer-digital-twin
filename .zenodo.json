@@ -1,0 +1,22 @@
+{
+  "title": "NAIC WP7 UC2 — PEM Electrolyzer Digital Twin",
+  "description": "Physics-informed neural network for PEM water electrolyzer modeling. 12-parameter student model outperforms ~50K-parameter pure ML on out-of-distribution data. Includes real-time digital twin.",
+  "creators": [
+    {
+      "name": "Arief, Hasan Asyari",
+      "affiliation": "NORCE Norwegian Research Centre"
+    }
+  ],
+  "keywords": [
+    "PINN",
+    "hydrogen",
+    "digital twin",
+    "electrolyzer",
+    "NAIC WP7"
+  ],
+  "license": {
+    "id": "GPL-3.0-only"
+  },
+  "upload_type": "software",
+  "access_right": "open"
+}

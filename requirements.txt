@@ -1,0 +1,10 @@
+# ML Dependencies (for running on VM)
+torch
+numpy
+pandas
+matplotlib
+seaborn
+tqdm
+ipywidgets
+jupyterlab
+paramiko
